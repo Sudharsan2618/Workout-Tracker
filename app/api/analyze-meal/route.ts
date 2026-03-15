@@ -30,7 +30,7 @@ Provide your analysis as a JSON object.`,
     ]
 
     const result = await generateText({
-      model: google("gemini-1.5-flash"),
+      model: google("gemini-3.1-pro-preview"),
       messages,
       output: Output.object({
         schema: z.object({

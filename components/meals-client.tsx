@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 import { ProgressRing } from "@/components/progress-ring"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { AI_BACKEND_URL } from "@/lib/ai-backend"
 import {
   Camera,
   Upload,
@@ -87,14 +88,40 @@ export function MealsClient({
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // 1. Show local preview immediately
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64 = reader.result as string
-        setImagePreview(base64)
-        setImageBase64(base64.split(",")[1])
+      // 1. Compress image via canvas
+      const url = URL.createObjectURL(file)
+      const img = document.createElement("img")
+      
+      img.onload = () => {
+        const MAX_WIDTH = 800
+        const MAX_HEIGHT = 800
+        let width = img.width
+        let height = img.height
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width
+            width = MAX_WIDTH
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height
+            height = MAX_HEIGHT
+          }
+        }
+
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        ctx?.drawImage(img, 0, 0, width, height)
+
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7)
+        setImagePreview(compressedBase64)
+        setImageBase64(compressedBase64.split(",")[1])
+        URL.revokeObjectURL(url)
       }
-      reader.readAsDataURL(file)
+      img.src = url
 
       // 2. Upload to Supabase Storage
       setUploading(true)
@@ -130,15 +157,22 @@ export function MealsClient({
 
     setAnalyzing(true)
     try {
-      const response = await fetch("/api/analyze-meal", {
+      const response = await fetch(`${AI_BACKEND_URL}/analyze-meal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64, mealDescription: description }),
+        body: JSON.stringify({ 
+          image_base64: imageBase64, 
+          meal_description: description 
+        }),
       })
 
       if (response.ok) {
         const result = await response.json()
         setAnalysisResult(result)
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        console.error("Analysis failed:", errorData)
+        throw new Error(errorData.detail || "Failed to analyze meal")
       }
     } catch (error) {
       console.error("Analysis failed:", error)
@@ -152,31 +186,56 @@ export function MealsClient({
     setSaving(true)
     const today = new Date().toISOString().split('T')[0]
 
-    await supabase.from("meals").insert({
-      user_id: userId,
-      date: today,
-      meal_type: selectedMealType,
-      description: analysisResult.description,
-      calories: analysisResult.calories,
-      protein_grams: analysisResult.protein,
-      image_url: imagePublicUrl,
-      ai_analysis: JSON.stringify(analysisResult),
-    })
+    try {
+      const response = await fetch(`${AI_BACKEND_URL}/meals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          date: today,
+          meal_type: selectedMealType,
+          description: analysisResult.description,
+          calories: Math.round(analysisResult.calories),
+          protein_grams: analysisResult.protein,
+          image_url: imagePublicUrl,
+          ai_analysis: JSON.stringify(analysisResult),
+        }),
+      })
 
-    // Reset and close
-    setShowAddModal(false)
-    setImagePreview(null)
-    setImageBase64(null)
-    setDescription("")
-    setAnalysisResult(null)
-    setImagePublicUrl(null)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || "Failed to save meal")
+      }
+
+      // Reset and close
+      setShowAddModal(false)
+      setImagePreview(null)
+      setImageBase64(null)
+      setDescription("")
+      setAnalysisResult(null)
+      setImagePublicUrl(null)
+      router.refresh()
+    } catch (error) {
+      console.error("Save failed:", error)
+    }
     setSaving(false)
-    router.refresh()
   }
 
   const deleteMeal = async (mealId: string) => {
-    await supabase.from("meals").delete().eq("id", mealId)
-    router.refresh()
+    try {
+      const response = await fetch(`${AI_BACKEND_URL}/meals/${mealId}?user_id=${userId}`, {
+        method: "DELETE",
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || "Failed to delete meal")
+      }
+      
+      router.refresh()
+    } catch (error) {
+      console.error("Delete failed:", error)
+    }
   }
 
   const getRemainingTip = () => {

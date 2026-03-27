@@ -69,26 +69,31 @@ export function WorkoutClient({
     5: "shoulders",
   }
 
-  const workoutType = workoutDays[dayOfWeek]
-  const isWorkoutDay = !!workoutType
-  const todayWorkout = workoutType ? WORKOUT_SCHEDULE[workoutType as keyof typeof WORKOUT_SCHEDULE] : null
+  const [activeWorkoutType, setActiveWorkoutType] = useState<string | null>(todaySession?.workout_type || workoutDays[dayOfWeek] || null)
+
+  const activeWorkout = activeWorkoutType 
+    ? (Object.values(WORKOUT_SCHEDULE).find(w => w !== 'rest' && (w as any).type === activeWorkoutType) as any) 
+    : null;
 
   // Initialize exercise logs from today's session or fresh
-  const initializeLogs = (): ExerciseLog[] => {
-    if (!todayWorkout) return []
+  const initializeLogs = (workoutDef: any): ExerciseLog[] => {
+    if (!workoutDef) return []
 
-    return todayWorkout.exercises.map((exercise) => {
+    return workoutDef.exercises.map((exercise: Exercise) => {
       const existingLogs = todaySession?.exercise_logs.filter(
         (log) => log.exercise_name === exercise.name
       ) || []
 
-      const lastWeight = exerciseHistory[exercise.name]?.weight || exercise.startingWeight
-      const suggestedWeight = lastWeight + (exercise.progressionKg || 0)
+      const lastWeight = exerciseHistory[exercise.name]?.weight || 20
+      const suggestedWeight = lastWeight
 
-      const sets = Array.from({ length: exercise.sets }, (_, i) => {
+      const targetRepsMatch = exercise.targetReps.match(/\d+/)
+      const defaultReps = targetRepsMatch ? parseInt(targetRepsMatch[0]) : 10
+
+      const sets = Array.from({ length: exercise.targetSets }, (_, i) => {
         const existingSet = existingLogs.find((log) => log.set_number === i + 1)
         return {
-          reps: existingSet?.reps || exercise.reps,
+          reps: existingSet?.reps || defaultReps,
           weight: existingSet?.weight_kg || suggestedWeight,
           completed: !!existingSet,
         }
@@ -102,7 +107,7 @@ export function WorkoutClient({
     })
   }
 
-  const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(initializeLogs)
+  const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(() => initializeLogs(activeWorkout))
   const [saving, setSaving] = useState(false)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(todaySession?.id || null)
 
@@ -128,7 +133,7 @@ export function WorkoutClient({
           .from("workout_sessions")
           .insert({
             user_id: userId,
-            workout_type: workoutType,
+            workout_type: activeWorkoutType,
             date: new Date().toISOString().split('T')[0],
           })
           .select()
@@ -201,7 +206,7 @@ export function WorkoutClient({
   )
   const totalSets = exerciseLogs.reduce((sum, log) => sum + log.sets.length, 0)
 
-  if (!isWorkoutDay) {
+  if (!activeWorkoutType) {
     return (
       <div className="p-4">
         <header className="mb-6">
@@ -214,9 +219,18 @@ export function WorkoutClient({
             <Clock className="w-8 h-8 text-accent" />
           </div>
           <h2 className="text-lg font-semibold text-foreground mb-2">Rest Day</h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-sm mb-6">
             Your muscles grow during rest. Focus on hitting your protein goal and getting quality sleep.
           </p>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-foreground mb-2">Or log a workout anyway:</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" onClick={() => { setActiveWorkoutType('chest_triceps'); setExerciseLogs(initializeLogs(Object.values(WORKOUT_SCHEDULE).find(w => w !== 'rest' && (w as any).type === 'chest_triceps'))); }}>Chest & Triceps</Button>
+              <Button variant="outline" onClick={() => { setActiveWorkoutType('back_biceps'); setExerciseLogs(initializeLogs(Object.values(WORKOUT_SCHEDULE).find(w => w !== 'rest' && (w as any).type === 'back_biceps'))); }}>Back & Biceps</Button>
+              <Button variant="outline" onClick={() => { setActiveWorkoutType('legs'); setExerciseLogs(initializeLogs(Object.values(WORKOUT_SCHEDULE).find(w => w !== 'rest' && (w as any).type === 'legs'))); }}>Legs</Button>
+              <Button variant="outline" onClick={() => { setActiveWorkoutType('shoulders'); setExerciseLogs(initializeLogs(Object.values(WORKOUT_SCHEDULE).find(w => w !== 'rest' && (w as any).type === 'shoulders'))); }}>Shoulders</Button>
+            </div>
+          </div>
         </div>
 
         {/* Recent workouts */}
@@ -252,7 +266,7 @@ export function WorkoutClient({
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground capitalize">
-              {todayWorkout?.name}
+              {activeWorkout?.name || "Workout"}
             </h1>
             <p className="text-muted-foreground">
               {completedSets}/{totalSets} sets completed
@@ -302,7 +316,7 @@ export function WorkoutClient({
                 <div className="text-left">
                   <p className="font-medium text-foreground">{log.exercise.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {log.exercise.sets} sets × {log.exercise.reps} reps
+                    {log.exercise.targetSets} sets × {log.exercise.targetReps} reps
                   </p>
                 </div>
               </div>

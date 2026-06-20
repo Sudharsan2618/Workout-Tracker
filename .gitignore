@@ -10,6 +10,13 @@ next.user-config.*
 
 # Environment variables
 .env*.local
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+*.tsbuildinfo
+next-env.d.ts
 
 # Common ignores
 node_modules/

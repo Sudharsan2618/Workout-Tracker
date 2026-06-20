@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
 import { ProgressRing } from "@/components/progress-ring"
@@ -305,6 +306,16 @@ export function MealsClient({
           <Lightbulb className="w-4 h-4 text-primary shrink-0 mt-0.5" />
           <p className="text-xs text-foreground">{getRemainingTip()}</p>
         </div>
+
+        {/* Food Guide CTA */}
+        <Link
+          href="/dashboard/foods"
+          className="mt-3 flex items-center justify-between p-3 bg-accent/10 border border-accent/20 rounded-lg hover:bg-accent/20 transition-colors"
+        >
+          <span className="text-xs font-medium text-foreground">
+            Not sure what to eat? See smart food suggestions →
+          </span>
+        </Link>
       </div>
 
       {/* Week Mini Chart */}

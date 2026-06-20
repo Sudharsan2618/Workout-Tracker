@@ -6,7 +6,8 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dumbbell, Mail, Lock, Loader2 } from "lucide-react"
+import { LogoMark } from "@/components/logo"
+import { Mail, Lock, Loader2 } from "lucide-react"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -56,9 +57,7 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
-            <Dumbbell className="w-8 h-8 text-primary" />
-          </div>
+          <div className="inline-flex mb-4"><LogoMark size={56} /></div>
           <h1 className="text-2xl font-bold text-foreground">Start Your Journey</h1>
           <p className="text-muted-foreground mt-2">Create an account to track your progress</p>
         </div>
